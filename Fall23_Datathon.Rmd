@@ -1,0 +1,70 @@
+---
+title: "Fall23 Hanes Datathon"
+author: "Aria Sajjad"
+date: "2023-11-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Load packages and data 
+library(tidyverse)
+library(ggplot2)
+library(plotly)
+library(RColorBrewer)
+library(scales)
+library(visdat)
+
+HANES = read.csv("ut_blockgroup_data_2023.csv")
+
+```
+
+```{r}
+# re-structure census block column
+HANES[,1] = c(1:nrow(HANES))
+
+# check for 'null' values
+sum(HANES$retailer26_avg_distance_miles == "null")
+
+# Ensure numeric data columns are numeric
+HANES = HANES %>% 
+  mutate(retailer26_store_cnt = as.numeric(retailer26_store_cnt)) %>%
+  mutate(retailer26_avg_distance_miles = as.numeric(retailer26_avg_distance_miles)) %>%
+  mutate(retailer41_store_cnt = as.numeric(retailer41_store_cnt)) %>%
+  mutate(retailer41_avg_distance_miles = as.numeric(retailer41_avg_distance_miles)) %>%
+  mutate(retailer45_store_cnt = as.numeric(retailer45_store_cnt)) %>%
+  mutate(retailer45_avg_distance_miles = as.numeric(retailer45_avg_distance_miles)) %>%
+  mutate(retailer46_store_cnt = as.numeric(retailer46_store_cnt)) %>%
+  mutate(retailer46_avg_distance_miles = as.numeric(retailer46_avg_distance_miles)) %>%
+  mutate(gender_by_age_total_cnt = as.numeric(gender_by_age_total_cnt)) %>%
+  mutate(gender_male_total_cnt = as.numeric(gender_male_total_cnt)) %>%
+  mutate(gender_female_total_cnt = as.numeric(gender_female_total_cnt)) %>%
+  mutate(gender_female_total_cnt = as.numeric(gender_female_total_cnt)) %>%
+  mutate(age_0to19yrs_total = as.numeric(age_0to19yrs_total)) %>%
+  mutate(age_20to39yrs_total = as.numeric(age_20to39yrs_total)) %>%
+  mutate(age_40plusyrs_total = as.numeric(age_40plusyrs_total)) %>%
+  mutate(hh_income_total_cnt = as.numeric(hh_income_total_cnt)) %>%
+  mutate(hh_income_0to50k_total_cnt = as.numeric(hh_income_0to50k_total_cnt)) %>%
+  mutate(hh_income_50to99k_total_cnt = as.numeric(hh_income_50to99k_total_cnt)) %>%
+  mutate(hh_income_100to149k_total_cnt = as.numeric(hh_income_100to149k_total_cnt)) %>%
+  mutate(hh_income_150to199k_total_cnt = as.numeric(hh_income_150to199k_total_cnt)) %>%
+  mutate(hh_income_200kplus_total_cnt = as.numeric(hh_income_200kplus_total_cnt)) %>%
+  mutate(ethnic_white_total_cnt = as.numeric(ethnic_white_total_cnt)) %>%
+  mutate(eth_blackafram_total_cnt = as.numeric(eth_blackafram_total_cnt)) %>%
+  mutate(eth_amindian_alaskan_total_cnt = as.numeric(eth_amindian_alaskan_total_cnt)) %>%
+  mutate(eth_asian_total_cnt = as.numeric(eth_asian_total_cnt)) %>%
+  mutate(eth_hawaiian_othpac_total_cnt = as.numeric(eth_hawaiian_othpac_total_cnt)) %>%
+  mutate(retailer26_sales_d = as.numeric(retailer26_sales_d)) %>%
+  mutate(retailer41_sales_d = as.numeric(retailer41_sales_d)) %>%
+  mutate(retailer45_sales_d = as.numeric(retailer45_sales_d)) %>%
+  mutate(retailer46_sales_d = as.numeric(retailer46_sales_d)) 
+
+# Visualize structure of the cleaned data frame
+vis_dat(HANES, warn_large_data = FALSE)
+
+```
+
+
