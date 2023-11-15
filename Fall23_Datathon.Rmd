@@ -17,15 +17,13 @@ library(plotly)
 library(RColorBrewer)
 library(scales)
 library(visdat)
+library(readxl)
 
-HANES = read.csv("ut_blockgroup_data_2023.csv")
+HANES <- read_excel("ut_blockgroup_data_2023.xlsx")
 
 ```
 
 ```{r}
-# re-structure census block column
-HANES[,1] = c(1:nrow(HANES))
-
 # check for 'null' values
 sum(HANES$retailer26_avg_distance_miles == "null")
 
