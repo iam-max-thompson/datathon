@@ -345,3 +345,29 @@ ggplot(heatmap_asian, aes(x=category, y=dma, fill=value)) +
 
 ```
 
+```{r}
+# HANES <- HANES %>%
+#   rename(Tota_population = "gender_by_age_total_cnt",
+#          Males_total = "gender_male_total_cnt",
+#          Females_total = "gender_female_total_cnt",
+#          Households_total = "hh_income_total_cnt",
+#          Retailer26_close = "retailer26_avg_distance_miles",
+#          Retailer41_close = "retailer41_avg_distance_miles",
+#          Retailer45_close = "retailer45_avg_distance_miles",
+#          Retailer46_close = "retailer46_avg_distance_miles",
+#          Income_range_0to50k_count = "hh_income_0to50k_total_cnt",
+#          Income_range_50to99k_count = "hh_income_50to99k_total_cnt",
+#          Income_range_100to149k_count = "hh_income_100to149k_total_cnt",
+#          Income_range_150to199k_count = "hh_income_150to199k_total_cnt",
+#          Income_range_200plus_count = "hh_income_200kplus_total_cnt",
+#          White_Total_count = "ethnic_white_total_cnt",
+#          African_american_count = "eth_blackafram_total_cnt",
+#          Amindial_Alaskan_count = "eth_amindian_alaskan_total_cnt",
+#          Asian_total_count = "eth_asian_total_cnt",
+#          Hawaiian_othoac_count = "eth_hawaiian_othpac_total_cnt",
+#          )
+
+
+
+
+```
