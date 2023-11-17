@@ -70,6 +70,8 @@ HANES = HANES %>%
 HANES = HANES %>% 
   mutate(total_sales = retailer26_sales_d + retailer41_sales_d + retailer45_sales_d + retailer46_sales_d) %>%
   mutate(sales_per_capita = total_sales / gender_by_age_total_cnt) %>%
+  mutate(numreportedincome = hh_income_total_cnt) %>%
+  mutate(numracereport = sum(ethnic_white_total_cnt,eth_blackafram_total_cnt,eth_amindian_alaskan_total_cnt,eth_asian_total_cnt,eth_hawaiian_othpac_total_cnt)) %>%
   filter( gender_by_age_total_cnt >= 1000)
 
 ```
@@ -155,35 +157,54 @@ library(factoextra)
 
 # 1. Data Preparation
 # Select relevant columns
-HANES_selected <- HANES_A %>%
+HANES_selectedA <- HANES_A %>%
+  select(dma, total_sales, starts_with("age_"))
+
+HANES_selectedB <- HANES_A %>%
   select(dma, total_sales, starts_with("age_"))
 
 # Aggregate data by DMA and category
-HANES_aggregated <- HANES_selected %>%
+HANES_aggregatedA <- HANES_selectedA %>%
+  group_by(dma) %>%
+  summarise_all(mean, na.rm = TRUE)
+
+HANES_aggregatedB <- HANES_selectedB %>%
   group_by(dma) %>%
   summarise_all(mean, na.rm = TRUE)
 
 # 2. Feature Scaling
-HANES_scaled <- scale(HANES_aggregated[,-c(1,2)])  # Excluding categorical variables dma and category
+HANES_scaledA <- scale(HANES_aggregatedA[,-c(1,2)])  # Excluding categorical variables dma and category
+HANES_scaledB <- scale(HANES_aggregatedB[,-c(1,2)])  # Excluding categorical variables dma and category
 
 # 3. Elbow Method
 set.seed(123)  # for reproducibility
-wss <- sapply(1:10, function(k){kmeans(HANES_scaled, k, nstart = 10)$tot.withinss})
-plot(1:10, wss, type="b", pch = 19, frame = FALSE, xlab="Number of clusters K", ylab="Total within-clusters sum of squares")
+wssA <- sapply(1:10, function(k){kmeans(HANES_scaledA, k, nstart = 10)$tot.withinss})
+plot(1:10, wssA, type="b", pch = 19, frame = FALSE, xlab="Number of clusters K", ylab="Total within-clusters sum of squares")
+wssB <- sapply(1:10, function(k){kmeans(HANES_scaledB, k, nstart = 10)$tot.withinss})
+plot(1:10, wssB, type="b", pch = 19, frame = FALSE, xlab="Number of clusters K", ylab="Total within-clusters sum of squares")
 
 # 4. K-Means Clustering
 # Currently set to 10 clusters
 set.seed(123)
-kmeans_result <- kmeans(HANES_scaled, centers = 10, nstart = 10)
+kmeans_resultA <- kmeans(HANES_scaledA, centers = 10, nstart = 10)
+kmeans_resultB <- kmeans(HANES_scaledB, centers = 10, nstart = 10)
 
 # Add cluster assignment to the data
-HANES_clusters <- HANES_aggregated %>%
+HANES_clustersA <- HANES_aggregatedA %>%
   ungroup() %>%
-  mutate(cluster = kmeans_result$cluster)
+  mutate(cluster = kmeans_resultA$cluster)
+HANES_clustersB <- HANES_aggregatedB %>%
+  ungroup() %>%
+  mutate(cluster = kmeans_resultB$cluster)
 
 # 5. Recommend Markets
 # For each category, select two DMAs from the same cluster
-recommended_markets <- HANES_clusters %>%
+recommended_marketsA <- HANES_clustersA %>%
+  group_by( cluster) %>%
+  slice_sample(n = 2) %>%
+  ungroup() %>%
+  select(dma, cluster)
+recommended_marketsB <- HANES_clustersB %>%
   group_by( cluster) %>%
   slice_sample(n = 2) %>%
   ungroup() %>%
@@ -195,37 +216,77 @@ recommended_markets <- HANES_clusters %>%
 # For Category A
 
 # Calculate Percentages for Each DMA and Category
-HANES_percentages <- HANES_A %>%
+HANES_percentagesA <- HANES_A %>%
   group_by(dma) %>%
   summarise(
     TotalPopulation = sum(gender_by_age_total_cnt, na.rm = TRUE),
-    PercentWhite = sum(ethnic_white_total_cnt, na.rm = TRUE) / TotalPopulation * 100,
-    PercentBlackAfrAm = sum(eth_blackafram_total_cnt, na.rm = TRUE) / TotalPopulation * 100,
-    PercentAsian = sum(eth_asian_total_cnt, na.rm = TRUE) / TotalPopulation * 100,
+    PercentWhite = sum(ethnic_white_total_cnt, na.rm = TRUE) / numracereport * 100,
+    PercentBlackAfrAm = sum(eth_blackafram_total_cnt, na.rm = TRUE) / numracereport * 100,
+    PercentAsian = sum(eth_asian_total_cnt, na.rm = TRUE) / numracereport * 100,
     PercentAge0to19 = sum(age_0to19yrs_total, na.rm = TRUE) / TotalPopulation * 100,
     PercentAge20to39 = sum(age_20to39yrs_total, na.rm = TRUE) / TotalPopulation * 100,
     PercentAge40Plus = sum(age_40plusyrs_total, na.rm = TRUE) / TotalPopulation * 100,
-    PercentIncome0to50k = sum(hh_income_0to50k_total_cnt, na.rm = TRUE) / TotalPopulation * 100,
-    PercentIncome50to99k = sum(hh_income_50to99k_total_cnt, na.rm = TRUE) / TotalPopulation * 100,
-    PercentIncome100to149k = sum(hh_income_100to149k_total_cnt, na.rm = TRUE) / TotalPopulation * 100,
-    PercentIncome150to199k = sum(hh_income_150to199k_total_cnt, na.rm = TRUE) / TotalPopulation * 100,
-    PercentIncome200kPlus = sum(hh_income_200kplus_total_cnt, na.rm = TRUE) / TotalPopulation * 100,
+    PercentIncome0to50k = sum(hh_income_0to50k_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    PercentIncome50to99k = sum(hh_income_50to99k_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    PercentIncome100to149k = sum(hh_income_100to149k_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    PercentIncome150to199k = sum(hh_income_150to199k_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    PercentIncome200kPlus = sum(hh_income_200kplus_total_cnt, na.rm = TRUE) / numreportedincome * 100,
     TotalSales = sum(total_sales, na.rm = TRUE),
     SalesPerCapita = mean(sales_per_capita, na.rm = TRUE)
   ) %>%
   ungroup()
 
 # Merge with recommended_markets
-recommended_markets_detailed <- recommended_markets %>%
-  left_join(HANES_percentages, by = c("dma"))
+recommended_markets_detailedA <- recommended_marketsA %>%
+  left_join(HANES_percentagesA, by = c("dma"))
 
 # View the updated dataframe
-print(recommended_markets_detailed)
+print(recommended_markets_detailedA)
 
 
-HANES_clusters_detailed <- HANES_clusters %>% 
-  left_join(HANES_percentages, by = c("dma", "category")) %>%
-  group_by(cluster, category) %>%
+HANES_clusters_detailedA <- HANES_clustersA %>% 
+  left_join(HANES_percentagesA, by = c("dma")) %>%
+  group_by(cluster) %>%
+  summarize( 
+            AVG_Age0to19 = mean(PercentAge0to19),
+            AVG_Age20to39 = mean(PercentAge20to39),
+            AVG_Age40Plus = mean(PercentAge40Plus))
+
+
+# For Category B
+
+# Calculate Percentages for Each DMA and Category
+HANES_percentagesB <- HANES_B %>%
+  group_by(dma) %>%
+  summarise(
+    TotalPopulation = sum(gender_by_age_total_cnt, na.rm = TRUE),
+    PercentWhite = sum(ethnic_white_total_cnt, na.rm = TRUE) / numracereport * 100,
+    PercentBlackAfrAm = sum(eth_blackafram_total_cnt, na.rm = TRUE) / numracereport * 100,
+    PercentAsian = sum(eth_asian_total_cnt, na.rm = TRUE) / numracereport * 100,
+    PercentAge0to19 = sum(age_0to19yrs_total, na.rm = TRUE) / TotalPopulation * 100,
+    PercentAge20to39 = sum(age_20to39yrs_total, na.rm = TRUE) / TotalPopulation * 100,
+    PercentAge40Plus = sum(age_40plusyrs_total, na.rm = TRUE) / TotalPopulation * 100,
+    PercentIncome0to50k = sum(hh_income_0to50k_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    PercentIncome50to99k = sum(hh_income_50to99k_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    PercentIncome100to149k = sum(hh_income_100to149k_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    PercentIncome150to199k = sum(hh_income_150to199k_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    PercentIncome200kPlus = sum(hh_income_200kplus_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    TotalSales = sum(total_sales, na.rm = TRUE),
+    SalesPerCapita = mean(sales_per_capita, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+# Merge with recommended_markets
+recommended_markets_detailedB <- recommended_marketsB %>%
+  left_join(HANES_percentagesB, by = c("dma"))
+
+# View the updated dataframe
+print(recommended_markets_detailedB)
+
+
+HANES_clusters_detailedB <- HANES_clustersB %>% 
+  left_join(HANES_percentagesB, by = c("dma")) %>%
+  group_by(cluster) %>%
   summarize( 
             AVG_Age0to19 = mean(PercentAge0to19),
             AVG_Age20to39 = mean(PercentAge20to39),
@@ -284,3 +345,29 @@ ggplot(heatmap_asian, aes(x=category, y=dma, fill=value)) +
 
 ```
 
+```{r}
+# HANES <- HANES %>%
+#   rename(Tota_population = "gender_by_age_total_cnt",
+#          Males_total = "gender_male_total_cnt",
+#          Females_total = "gender_female_total_cnt",
+#          Households_total = "hh_income_total_cnt",
+#          Retailer26_close = "retailer26_avg_distance_miles",
+#          Retailer41_close = "retailer41_avg_distance_miles",
+#          Retailer45_close = "retailer45_avg_distance_miles",
+#          Retailer46_close = "retailer46_avg_distance_miles",
+#          Income_range_0to50k_count = "hh_income_0to50k_total_cnt",
+#          Income_range_50to99k_count = "hh_income_50to99k_total_cnt",
+#          Income_range_100to149k_count = "hh_income_100to149k_total_cnt",
+#          Income_range_150to199k_count = "hh_income_150to199k_total_cnt",
+#          Income_range_200plus_count = "hh_income_200kplus_total_cnt",
+#          White_Total_count = "ethnic_white_total_cnt",
+#          African_american_count = "eth_blackafram_total_cnt",
+#          Amindial_Alaskan_count = "eth_amindian_alaskan_total_cnt",
+#          Asian_total_count = "eth_asian_total_cnt",
+#          Hawaiian_othoac_count = "eth_hawaiian_othpac_total_cnt",
+#          )
+
+
+
+
+```

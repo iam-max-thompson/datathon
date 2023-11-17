@@ -1,0 +1,411 @@
+---
+title: "Datathon_MODEL"
+author: "Ian Leonard"
+date: "2023-11-16"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#Proportion Model Test
+
+# Load packages and data 
+library(tidyverse)
+library(ggplot2)
+library(plotly)
+library(RColorBrewer)
+library(scales)
+library(visdat)
+library(readxl)
+
+HANES <- read_excel("ut_blockgroup_data_2023.xlsx")
+
+```
+
+```{r}
+# check for 'null' values
+#sum(HANES$retailer26_avg_distance_miles == "null")
+
+# Ensure numeric data columns are numeric
+HANES = HANES %>% 
+  mutate(retailer26_store_cnt = as.numeric(retailer26_store_cnt)) %>%
+  mutate(retailer26_avg_distance_miles = as.numeric(retailer26_avg_distance_miles)) %>%
+  mutate(retailer41_store_cnt = as.numeric(retailer41_store_cnt)) %>%
+  mutate(retailer41_avg_distance_miles = as.numeric(retailer41_avg_distance_miles)) %>%
+  mutate(retailer45_store_cnt = as.numeric(retailer45_store_cnt)) %>%
+  mutate(retailer45_avg_distance_miles = as.numeric(retailer45_avg_distance_miles)) %>%
+  mutate(retailer46_store_cnt = as.numeric(retailer46_store_cnt)) %>%
+  mutate(retailer46_avg_distance_miles = as.numeric(retailer46_avg_distance_miles)) %>%
+  mutate(gender_by_age_total_cnt = as.numeric(gender_by_age_total_cnt)) %>%
+  mutate(gender_male_total_cnt = as.numeric(gender_male_total_cnt)) %>%
+  mutate(gender_female_total_cnt = as.numeric(gender_female_total_cnt)) %>%
+  mutate(gender_female_total_cnt = as.numeric(gender_female_total_cnt)) %>%
+  mutate(age_0to19yrs_total = as.numeric(age_0to19yrs_total)) %>%
+  mutate(age_20to39yrs_total = as.numeric(age_20to39yrs_total)) %>%
+  mutate(age_40plusyrs_total = as.numeric(age_40plusyrs_total)) %>%
+  mutate(hh_income_total_cnt = as.numeric(hh_income_total_cnt)) %>%
+  mutate(hh_income_0to50k_total_cnt = as.numeric(hh_income_0to50k_total_cnt)) %>%
+  mutate(hh_income_50to99k_total_cnt = as.numeric(hh_income_50to99k_total_cnt)) %>%
+  mutate(hh_income_100to149k_total_cnt = as.numeric(hh_income_100to149k_total_cnt)) %>%
+  mutate(hh_income_150to199k_total_cnt = as.numeric(hh_income_150to199k_total_cnt)) %>%
+  mutate(hh_income_200kplus_total_cnt = as.numeric(hh_income_200kplus_total_cnt)) %>%
+  mutate(ethnic_white_total_cnt = as.numeric(ethnic_white_total_cnt)) %>%
+  mutate(eth_blackafram_total_cnt = as.numeric(eth_blackafram_total_cnt)) %>%
+  mutate(eth_amindian_alaskan_total_cnt = as.numeric(eth_amindian_alaskan_total_cnt)) %>%
+  mutate(eth_asian_total_cnt = as.numeric(eth_asian_total_cnt)) %>%
+  mutate(eth_hawaiian_othpac_total_cnt = as.numeric(eth_hawaiian_othpac_total_cnt)) %>%
+  mutate(retailer26_sales_d = as.numeric(retailer26_sales_d)) %>%
+  mutate(retailer41_sales_d = as.numeric(retailer41_sales_d)) %>%
+  mutate(retailer45_sales_d = as.numeric(retailer45_sales_d)) %>%
+  mutate(retailer46_sales_d = as.numeric(retailer46_sales_d)) 
+```
+
+```{r}
+# Create new column for total sales, sales/cap, 
+HANES = HANES %>%
+  mutate(total_sales = retailer26_sales_d + retailer41_sales_d + retailer45_sales_d + retailer46_sales_d) %>%
+  mutate(sales_per_capita = total_sales / gender_by_age_total_cnt) %>%
+  mutate(numreportedincome = hh_income_total_cnt) %>%
+  mutate(numracereport = ethnic_white_total_cnt + eth_blackafram_total_cnt + eth_amindian_alaskan_total_cnt + eth_asian_total_cnt + eth_hawaiian_othpac_total_cnt) %>%
+  mutate(population = gender_by_age_total_cnt) %>% 
+  filter( gender_by_age_total_cnt >= 1000)
+```
+
+```{r}
+# Splitting the dataset into two subsets for Category A and Category B
+HANES_A <- HANES %>% filter(category == "category_a")
+HANES_B <- HANES %>% filter(category == "category_b")
+```
+
+```{r}
+# Calculate Percentages for Each DMA and Category
+HANES_A$county_state <- paste(HANES_A$county_name, HANES_A$state_name, sep = ", ")
+HANES_B$county_state <- paste(HANES_B$county_name, HANES_B$state_name, sep = ", ")
+```
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(caret)
+library(gbm)
+
+# Assuming HANES_A dataset is already loaded and processed up to the required step
+
+# Function to safely calculate percentages, avoiding division by zero
+safe_percentage <- function(numerator, denominator) {
+  ifelse(denominator == 0, NA, (numerator / denominator) * 100)
+}
+
+# Data Preparation with safe percentage calculations
+HANES_percentagesA <- HANES_A %>%
+  group_by(county_state, dma) %>%
+  summarise(
+    TotalPopulation = sum(population),
+    numrace = sum(numracereport),
+    numincome = sum(numreportedincome),
+    PercentWhite = safe_percentage(sum(ethnic_white_total_cnt, na.rm = TRUE), numrace),
+    PercentBlackAfrAm = safe_percentage(sum(eth_blackafram_total_cnt, na.rm = TRUE), numrace),
+    PercentAsian = safe_percentage(sum(eth_asian_total_cnt, na.rm = TRUE), numrace),
+    PercentAge0to19 = safe_percentage(sum(age_0to19yrs_total, na.rm = TRUE), TotalPopulation),
+    PercentAge20to39 = safe_percentage(sum(age_20to39yrs_total, na.rm = TRUE), TotalPopulation),
+    PercentAge40Plus = safe_percentage(sum(age_40plusyrs_total, na.rm = TRUE), TotalPopulation),
+    PercentIncome0to50k = safe_percentage(sum(hh_income_0to50k_total_cnt, na.rm = TRUE), numincome),
+    PercentIncome50to99k = safe_percentage(sum(hh_income_50to99k_total_cnt, na.rm = TRUE), numincome),
+    PercentIncome100to149k = safe_percentage(sum(hh_income_100to149k_total_cnt, na.rm = TRUE), numincome),
+    PercentIncome150to199k = safe_percentage(sum(hh_income_150to199k_total_cnt, na.rm = TRUE), numincome),
+    PercentIncome200kPlus = safe_percentage(sum(hh_income_200kplus_total_cnt, na.rm = TRUE), numincome),
+    TotalSales = sum(total_sales, na.rm = TRUE),
+    SalesPerCapita = mean(sales_per_capita, na.rm = TRUE),
+    logpop = log(TotalPopulation)
+  ) %>%
+  ungroup()
+
+# Split the data
+split_index_a <- createDataPartition(HANES_percentagesA$SalesPerCapita, p = 0.7, list = FALSE)
+train_data_a <- HANES_percentagesA[split_index_a, ]
+test_data_a <- HANES_percentagesA[-split_index_a, ]
+
+# Define the grid of hyperparameters for GBM
+gbm_params <- list(
+  distribution = "gaussian",
+  n.trees = 1000,
+  interaction.depth = 5,
+  n.minobsinnode = 10,
+  shrinkage = 0.01,
+  bag.fraction = 0.5
+)
+
+# Define the model formula
+model_formula <- SalesPerCapita ~ PercentWhite + PercentBlackAfrAm + PercentAsian +
+                 PercentAge0to19 + PercentAge20to39 + PercentAge40Plus +
+                 PercentIncome0to50k + PercentIncome50to99k + PercentIncome100to149k +
+                 PercentIncome150to199k + PercentIncome200kPlus +
+                 logpop
+
+# Train the GBM model
+model_a_gbm <- gbm(
+  formula = model_formula,
+  data = train_data_a,
+  distribution = gbm_params$distribution,
+  n.trees = gbm_params$n.trees,
+  interaction.depth = gbm_params$interaction.depth,
+  n.minobsinnode = gbm_params$n.minobsinnode,
+  shrinkage = gbm_params$shrinkage,
+  bag.fraction = gbm_params$bag.fraction,
+  cv.folds = 10,
+  verbose = TRUE
+)
+
+# Make predictions
+predictions_a_gbm <- predict(model_a_gbm, newdata = test_data_a)
+
+# Evaluate the model
+rmse_a_gbm <- sqrt(mean((predictions_a_gbm - test_data_a$SalesPerCapita)^2))
+
+# Print RMSE
+print(rmse_a_gbm)
+
+# Print variable importance
+importance_a_gbm <- summary(model_a_gbm)
+print(importance_a_gbm)
+```
+
+
+
+HANES CATEGORY A MODEL BUILD
+```{r}
+HANES_percentagesA <- HANES_A %>%
+  group_by(county_state, dma) %>%
+  summarise(
+    TotalPopulation = sum(population),
+    numrace = sum(numracereport),
+    numincome = sum(numreportedincome),
+    PercentWhite = sum(ethnic_white_total_cnt, na.rm = TRUE) / numrace * 100,
+    PercentBlackAfrAm = sum(eth_blackafram_total_cnt, na.rm = TRUE) / numrace * 100,
+    PercentAsian = sum(eth_asian_total_cnt, na.rm = TRUE) / numrace * 100,
+    PercentAge0to19 = sum(age_0to19yrs_total, na.rm = TRUE) / TotalPopulation * 100,
+    PercentAge20to39 = sum(age_20to39yrs_total, na.rm = TRUE) / TotalPopulation * 100,
+    PercentAge40Plus = sum(age_40plusyrs_total, na.rm = TRUE) / TotalPopulation * 100,
+    PercentIncome0to50k = sum(hh_income_0to50k_total_cnt, na.rm = TRUE) / numincome * 100,
+    PercentIncome50to99k = sum(hh_income_50to99k_total_cnt, na.rm = TRUE) / numincome * 100,
+    PercentIncome100to149k = sum(hh_income_100to149k_total_cnt, na.rm = TRUE) / numincome * 100,
+    PercentIncome150to199k = sum(hh_income_150to199k_total_cnt, na.rm = TRUE) / numincome * 100,
+    PercentIncome200kPlus = sum(hh_income_200kplus_total_cnt, na.rm = TRUE) / numincome * 100,
+    TotalSales = sum(total_sales, na.rm = TRUE),
+    SalesPerCapita = mean(sales_per_capita, na.rm = TRUE),
+    logpop = log(TotalPopulation)
+  ) %>% 
+  ungroup()
+```
+
+```{r}
+library(xgboost)
+# Data Preprocessing
+# (Note: Make sure to handle any missing values or other preprocessing steps as needed)
+
+# Split the data  # for reproducibility
+split_index_a <- createDataPartition(HANES_percentagesA$SalesPerCapita, p = 0.7, list = FALSE)
+train_data_a <- HANES_percentagesA[split_index_a, ]
+test_data_a <- HANES_percentagesA[-split_index_a, ]
+
+# Define the grid of hyperparameters
+params <- list(
+  objective = "reg:squarederror",  # Regression task
+  max_depth = 10,
+  eta = 0.3,
+  gamma = .01,
+  colsample_bytree = 0.7,
+  min_child_weight = 5
+)
+
+
+  # Define the model
+  model_a <- xgboost(
+    data = as.matrix(train_data_a[, -c(1, 2, 3, 4, 5, 17,18)]),
+    label = train_data_a$SalesPerCapita,
+    params = params,
+    nrounds=50,
+    eval_metric = "rmse",
+  )
+
+  # Make predictions
+  predictions_a <- predict(model_a, as.matrix(test_data_a[, -c(1, 2, 3, 4, 5, 17,18)]))
+
+  # Evaluate the model
+  rmse_a <- sqrt(mean((predictions_a - test_data_a$SalesPerCapita)^2))
+  
+print(rmse_a)
+
+class(model_a)
+importance_a <- xgb.importance(model=model_a)
+print(importance_a)
+```
+
+
+
+HANES CATEGORY B MODEL BUILD
+```{r}
+# Calculate Percentages for Each DMA and Category
+HANES_percentagesB <- HANES_B %>%
+  group_by(county_state, dma) %>%
+  summarise(
+    TotalPopulation = sum(population),
+    numrace = sum(numracereport),
+    numincome = sum(numreportedincome),
+    PercentWhite = sum(ethnic_white_total_cnt, na.rm = TRUE) / numrace * 100,
+    PercentBlackAfrAm = sum(eth_blackafram_total_cnt, na.rm = TRUE) / numrace * 100,
+    PercentAsian = sum(eth_asian_total_cnt, na.rm = TRUE) / numrace * 100,
+    PercentAge0to19 = sum(age_0to19yrs_total, na.rm = TRUE) / TotalPopulation * 100,
+    PercentAge20to39 = sum(age_20to39yrs_total, na.rm = TRUE) / TotalPopulation * 100,
+    PercentAge40Plus = sum(age_40plusyrs_total, na.rm = TRUE) / TotalPopulation * 100,
+    PercentIncome0to50k = sum(hh_income_0to50k_total_cnt, na.rm = TRUE) / numincome * 100,
+    PercentIncome50to99k = sum(hh_income_50to99k_total_cnt, na.rm = TRUE) / numincome * 100,
+    PercentIncome100to149k = sum(hh_income_100to149k_total_cnt, na.rm = TRUE) / numincome * 100,
+    PercentIncome150to199k = sum(hh_income_150to199k_total_cnt, na.rm = TRUE) / numincome * 100,
+    PercentIncome200kPlus = sum(hh_income_200kplus_total_cnt, na.rm = TRUE) / numincome * 100,
+    TotalSales = sum(total_sales, na.rm = TRUE),
+    SalesPerCapita = mean(sales_per_capita, na.rm = TRUE),
+    logpop = log(TotalPopulation)
+    #dma = dma
+  ) %>% 
+  ungroup()
+```
+
+```{r}
+#Category B
+# Data Preprocessing
+# (Note: Make sure to handle any missing values or other preprocessing steps as needed)
+
+# Split the data  # for reproducibility
+split_index_b <- createDataPartition(HANES_percentagesB$SalesPerCapita, p = 0.7, list = FALSE)
+train_data_b <- HANES_percentagesB[split_index_b, ]
+test_data_b <- HANES_percentagesB[-split_index_b, ]
+
+# Define the model
+model_b <- xgboost(
+  data = as.matrix(train_data_b[, -c(1,2,3,4,5,17,18)]),
+  label = train_data_b$SalesPerCapita,
+  nrounds = 50,  # Number of boosting rounds
+  objective = "reg:squarederror",  # Regression task
+  eval_metric = "rmse",
+  eta = 0.01
+  # Root Mean Squared Error as the evaluation metric
+)
+
+# Make predictions
+predictions_b <- predict(model_b, as.matrix(test_data_b[, -c(1,2,3,4,5,17,18)]))
+
+# Evaluate the model
+rmse_b <- sqrt(mean((predictions_b - test_data_b$SalesPerCapita)^2))
+cat("Root Mean Squared Error on the test set:", rmse_b, "\n")
+
+importance_b <- xgb.importance(model=model_b)
+print(importance_b)
+
+
+```
+
+```{r}
+# CREATE A DATAFRAME WITH PREDICTED AND ACTUAL VALUES (A)
+
+# Add predictions to the test data
+test_data_a$PredictedSalesPerCapita <- predictions_a
+
+# Calculate the difference between predicted and actual values
+test_data_a$Difference <- test_data_a$PredictedSalesPerCapita - test_data_a$SalesPerCapita
+
+# Create a table with relevant columns
+result_table_a <- data.frame(
+  county_state = test_data_a$county_state,
+  ActualSalesPerCapita = test_data_a$SalesPerCapita,
+  PredictedSalesPerCapita = test_data_a$PredictedSalesPerCapita,
+  Difference = test_data_a$Difference
+)
+
+# Print or view the result_table
+print(result_table_a)
+
+```
+```{r}
+# CREATE A DATAFRAME WITH PREDICTED AND ACTUAL VALUES (B)
+
+# Add predictions to the test data
+test_data_b$PredictedSalesPerCapita <- predictions_b
+
+# Calculate the difference between predicted and actual values
+test_data_b$Difference <- test_data_b$PredictedSalesPerCapita - test_data_b$SalesPerCapita
+
+# Create a table with relevant columns
+result_table_b <- data.frame(
+  county_state = test_data_b$county_state,
+  ActualSalesPerCapita = test_data_b$SalesPerCapita,
+  PredictedSalesPerCapita = test_data_b$PredictedSalesPerCapita,
+  Difference = test_data_b$Difference
+)
+
+# Print or view the result_table
+print(result_table_b)
+
+
+```
+
+
+
+Testing for parameters (DO NOT RUN)
+# ```{r}
+# # Install and load the necessary libraries if you haven't already
+# # install.packages("caret")
+# library(caret)
+# 
+# # Define a grid of hyperparameters
+# param_grid <- expand.grid(
+#   nrounds = c(50, 100),
+#   max_depth = c(10, 25),
+#   eta = c(0.01, 0.3),
+#   gamma = c(0, 0.01),
+#   colsample_bytree = c(0.2, 0.7),
+#   min_child_weight = c(5, 10),
+#   subsample = c(0.2, 0.7)
+# )
+# 
+# # Train the model with grid search for hyperparameter tuning
+# model_tuned <- train(
+#   x = as.matrix(train_data_a[, -c(1, 2, 3, 4, 5, 17, 18)]),
+#   y = train_data_a$SalesPerCapita,
+#   method = "xgbTree",
+#   trControl = trainControl(method = "cv", number = 5),
+#   tuneGrid = param_grid,
+#   metric = "RMSE"
+# )
+# 
+# # Get the best hyperparameters
+# best_params <- model_tuned$bestTune
+# print(best_params)
+# 
+# # Train the final model with the best hyperparameters
+# final_model_a <- xgboost(
+#   data = as.matrix(train_data_a[, -c(1, 2, 3, 4, 5, 17, 18)]),
+#   label = train_data_a$SalesPerCapita,
+#   objective = "reg:squarederror",
+#   nrounds = 50,
+#   eval_metric = "rmse",
+#   max_depth = best_params$max_depth,
+#   eta = best_params$eta,
+#   gamma = best_params$gamma,
+#   colsample_bytree = best_params$colsample_bytree,
+#   min_child_weight = best_params$min_child_weight
+# )
+# 
+# # Make predictions
+# predictions_a <- predict(final_model_a, as.matrix(test_data_a[, -c(1, 2, 3, 4, 5, 17, 18)]))
+# 
+# # Evaluate the model
+# rmse_a <- sqrt(mean((predictions_a - test_data_a$SalesPerCapita)^2))
+# print(paste("Root Mean Squared Error on the test set:", rmse_a))
+
+#```
+
+
