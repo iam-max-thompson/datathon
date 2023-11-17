@@ -1,0 +1,345 @@
+---
+title: "Fall23 Hanes Datathon"
+author: "Aria Sajjad"
+date: "2023-11-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Load packages and data 
+library(tidyverse)
+library(ggplot2)
+library(plotly)
+library(RColorBrewer)
+library(scales)
+library(visdat)
+library(readxl)
+
+HANES <- read_excel("ut_blockgroup_data_2023.xlsx")
+
+```
+
+```{r}
+# check for 'null' values
+sum(HANES$retailer26_avg_distance_miles == "null")
+
+# Ensure numeric data columns are numeric
+HANES = HANES %>% 
+  mutate(retailer26_store_cnt = as.numeric(retailer26_store_cnt)) %>%
+  mutate(retailer26_avg_distance_miles = as.numeric(retailer26_avg_distance_miles)) %>%
+  mutate(retailer41_store_cnt = as.numeric(retailer41_store_cnt)) %>%
+  mutate(retailer41_avg_distance_miles = as.numeric(retailer41_avg_distance_miles)) %>%
+  mutate(retailer45_store_cnt = as.numeric(retailer45_store_cnt)) %>%
+  mutate(retailer45_avg_distance_miles = as.numeric(retailer45_avg_distance_miles)) %>%
+  mutate(retailer46_store_cnt = as.numeric(retailer46_store_cnt)) %>%
+  mutate(retailer46_avg_distance_miles = as.numeric(retailer46_avg_distance_miles)) %>%
+  mutate(gender_by_age_total_cnt = as.numeric(gender_by_age_total_cnt)) %>%
+  mutate(gender_male_total_cnt = as.numeric(gender_male_total_cnt)) %>%
+  mutate(gender_female_total_cnt = as.numeric(gender_female_total_cnt)) %>%
+  mutate(gender_female_total_cnt = as.numeric(gender_female_total_cnt)) %>%
+  mutate(age_0to19yrs_total = as.numeric(age_0to19yrs_total)) %>%
+  mutate(age_20to39yrs_total = as.numeric(age_20to39yrs_total)) %>%
+  mutate(age_40plusyrs_total = as.numeric(age_40plusyrs_total)) %>%
+  mutate(hh_income_total_cnt = as.numeric(hh_income_total_cnt)) %>%
+  mutate(hh_income_0to50k_total_cnt = as.numeric(hh_income_0to50k_total_cnt)) %>%
+  mutate(hh_income_50to99k_total_cnt = as.numeric(hh_income_50to99k_total_cnt)) %>%
+  mutate(hh_income_100to149k_total_cnt = as.numeric(hh_income_100to149k_total_cnt)) %>%
+  mutate(hh_income_150to199k_total_cnt = as.numeric(hh_income_150to199k_total_cnt)) %>%
+  mutate(hh_income_200kplus_total_cnt = as.numeric(hh_income_200kplus_total_cnt)) %>%
+  mutate(ethnic_white_total_cnt = as.numeric(ethnic_white_total_cnt)) %>%
+  mutate(eth_blackafram_total_cnt = as.numeric(eth_blackafram_total_cnt)) %>%
+  mutate(eth_amindian_alaskan_total_cnt = as.numeric(eth_amindian_alaskan_total_cnt)) %>%
+  mutate(eth_asian_total_cnt = as.numeric(eth_asian_total_cnt)) %>%
+  mutate(eth_hawaiian_othpac_total_cnt = as.numeric(eth_hawaiian_othpac_total_cnt)) %>%
+  mutate(retailer26_sales_d = as.numeric(retailer26_sales_d)) %>%
+  mutate(retailer41_sales_d = as.numeric(retailer41_sales_d)) %>%
+  mutate(retailer45_sales_d = as.numeric(retailer45_sales_d)) %>%
+  mutate(retailer46_sales_d = as.numeric(retailer46_sales_d)) 
+
+# Visualize structure of the cleaned data frame
+#vis_dat(HANES, warn_large_data = FALSE)
+
+```
+
+```{r}
+# Create new column for total sales, sales/cap, 
+HANES = HANES %>% 
+  mutate(total_sales = retailer26_sales_d + retailer41_sales_d + retailer45_sales_d + retailer46_sales_d) %>%
+  mutate(sales_per_capita = total_sales / gender_by_age_total_cnt) %>%
+  mutate(numreportedincome = hh_income_total_cnt) %>%
+  mutate(numracereport = sum(ethnic_white_total_cnt,eth_blackafram_total_cnt,eth_amindian_alaskan_total_cnt,eth_asian_total_cnt,eth_hawaiian_othpac_total_cnt)) %>%
+  filter( gender_by_age_total_cnt >= 1000)
+
+```
+
+```{r}
+# Splitting the dataset into two subsets for Category A and Category B
+HANES_A <- HANES %>% filter(category == "category_a")
+HANES_B <- HANES %>% filter(category == "category_b")
+
+# 1. Correlation Analysis
+# For Category A
+correlation_data_A <- HANES_A %>%
+  select(starts_with("hh_income"), starts_with("eth_"), starts_with("sales_per"), total_sales) %>%
+  cor(use = "complete.obs")
+
+# For Category B
+correlation_data_B <- HANES_B %>%
+  select(starts_with("hh_income"), starts_with("eth_"), starts_with("sales_per"), total_sales) %>%
+  cor(use = "complete.obs") 
+
+# Inspect the correlation matrices
+print(correlation_data_A["total_sales", ])
+print(correlation_data_B["total_sales", ])
+
+# 2. Top Performing DMAs
+# For Category A - total sales
+top_dmas_A <- HANES_A %>%
+  group_by(dma) %>%
+  summarise(Total_Sales_A = sum(total_sales, na.rm = TRUE)) %>%
+  arrange(desc(Total_Sales_A))
+
+# For Category B - total sales
+top_dmas_B <- HANES_B %>%
+  group_by(dma) %>%
+  summarise(Total_Sales_B = sum(total_sales, na.rm = TRUE)) %>%
+  arrange(desc(Total_Sales_B))
+
+# View top DMAs for each category
+print(top_dmas_A)
+print(top_dmas_B)
+
+# For Category A - sales per cap
+top_dmas_A_scp <- HANES_A %>%
+  group_by(dma) %>%
+  summarise(PerCap_Sales_A = mean(sales_per_capita, na.rm = TRUE)) %>%
+  arrange(desc(PerCap_Sales_A))
+
+# For Category B - sales per cap
+top_dmas_B_scp <- HANES_B %>%
+  group_by(dma) %>%
+  summarise(PerCap_Sales_B = mean(sales_per_capita, na.rm = TRUE)) %>%
+  arrange(desc(PerCap_Sales_B))
+
+# View top DMAs for each category
+print(top_dmas_A_scp)
+print(top_dmas_B_scp)
+
+
+# 3. Variation in Sales
+# For Category A
+sales_variation_A <- HANES_A %>%
+  group_by(dma) %>%
+  summarise(Std_Dev_Sales_A = sd(total_sales, na.rm = TRUE)) %>%
+  arrange(desc(Std_Dev_Sales_A))
+
+# For Category B
+sales_variation_B <- HANES_B %>%
+  group_by(dma) %>%
+  summarise(Std_Dev_Sales_B = sd(total_sales, na.rm = TRUE)) %>%
+  arrange(desc(Std_Dev_Sales_B))
+
+# View DMAs with most variation
+print(sales_variation_A)
+print(sales_variation_B)
+
+```
+
+
+```{r}
+# Load necessary libraries
+library(cluster)
+library(factoextra)
+
+# 1. Data Preparation
+# Select relevant columns
+HANES_selectedA <- HANES_A %>%
+  select(dma, total_sales, starts_with("age_"))
+
+HANES_selectedB <- HANES_A %>%
+  select(dma, total_sales, starts_with("age_"))
+
+# Aggregate data by DMA and category
+HANES_aggregatedA <- HANES_selectedA %>%
+  group_by(dma) %>%
+  summarise_all(mean, na.rm = TRUE)
+
+HANES_aggregatedB <- HANES_selectedB %>%
+  group_by(dma) %>%
+  summarise_all(mean, na.rm = TRUE)
+
+# 2. Feature Scaling
+HANES_scaledA <- scale(HANES_aggregatedA[,-c(1,2)])  # Excluding categorical variables dma and category
+HANES_scaledB <- scale(HANES_aggregatedB[,-c(1,2)])  # Excluding categorical variables dma and category
+
+# 3. Elbow Method
+#set.seed(123)  # for reproducibility
+wssA <- sapply(1:10, function(k){kmeans(HANES_scaledA, k, nstart = 25)$tot.withinss})
+plot(1:10, wssA, type="b", pch = 19, frame = FALSE, xlab="Number of clusters K", ylab="Total within-clusters sum of squares")
+wssB <- sapply(1:10, function(k){kmeans(HANES_scaledB, k, nstart = 25)$tot.withinss})
+plot(1:10, wssB, type="b", pch = 19, frame = FALSE, xlab="Number of clusters K", ylab="Total within-clusters sum of squares")
+
+# 4. K-Means Clustering
+# Currently set to 10 clusters
+#set.seed(123)
+kmeans_resultA <- kmeans(HANES_scaledA, centers = 10, nstart = 25)
+kmeans_resultB <- kmeans(HANES_scaledB, centers = 10, nstart = 25)
+
+# Add cluster assignment to the data
+HANES_clustersA <- HANES_aggregatedA %>%
+  ungroup() %>%
+  mutate(cluster = kmeans_resultA$cluster)
+HANES_clustersB <- HANES_aggregatedB %>%
+  ungroup() %>%
+  mutate(cluster = kmeans_resultB$cluster)
+
+# 5. Recommend Markets
+# For each category, select two DMAs from the same cluster
+recommended_marketsA <- HANES_clustersA %>%
+  group_by( cluster) %>%
+  slice_sample(n = 2) %>%
+  ungroup() %>%
+  select(dma, cluster)
+recommended_marketsB <- HANES_clustersB %>%
+  group_by( cluster) %>%
+  slice_sample(n = 2) %>%
+  ungroup() %>%
+  select(dma, cluster)
+
+```
+
+```{r}
+# For Category A
+
+# Calculate Percentages for Each DMA and Category
+HANES_percentagesA <- HANES_A %>%
+  group_by(dma) %>%
+  summarise(
+    TotalPopulation = sum(gender_by_age_total_cnt, na.rm = TRUE),
+    PercentWhite = sum(ethnic_white_total_cnt, na.rm = TRUE) / numracereport * 100,
+    PercentBlackAfrAm = sum(eth_blackafram_total_cnt, na.rm = TRUE) / numracereport * 100,
+    PercentAsian = sum(eth_asian_total_cnt, na.rm = TRUE) / numracereport * 100,
+    PercentAge0to19 = sum(age_0to19yrs_total, na.rm = TRUE) / TotalPopulation * 100,
+    PercentAge20to39 = sum(age_20to39yrs_total, na.rm = TRUE) / TotalPopulation * 100,
+    PercentAge40Plus = sum(age_40plusyrs_total, na.rm = TRUE) / TotalPopulation * 100,
+    PercentIncome0to50k = sum(hh_income_0to50k_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    PercentIncome50to99k = sum(hh_income_50to99k_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    PercentIncome100to149k = sum(hh_income_100to149k_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    PercentIncome150to199k = sum(hh_income_150to199k_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    PercentIncome200kPlus = sum(hh_income_200kplus_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    TotalSales = sum(total_sales, na.rm = TRUE),
+    SalesPerCapita = mean(sales_per_capita, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+# Merge with recommended_markets
+recommended_markets_detailedA <- recommended_marketsA %>%
+  left_join(HANES_percentagesA, by = c("dma"))
+
+# View the updated dataframe
+print(recommended_markets_detailedA)
+
+
+HANES_clusters_detailedA <- HANES_clustersA %>% 
+  left_join(HANES_percentagesA, by = c("dma")) %>%
+  group_by(cluster) %>%
+  summarize( 
+            AVG_Age0to19 = mean(PercentAge0to19),
+            AVG_Age20to39 = mean(PercentAge20to39),
+            AVG_Age40Plus = mean(PercentAge40Plus))
+
+
+# For Category B
+
+# Calculate Percentages for Each DMA and Category
+HANES_percentagesB <- HANES_B %>%
+  group_by(dma) %>%
+  summarise(
+    TotalPopulation = sum(gender_by_age_total_cnt, na.rm = TRUE),
+    PercentWhite = sum(ethnic_white_total_cnt, na.rm = TRUE) / numracereport * 100,
+    PercentBlackAfrAm = sum(eth_blackafram_total_cnt, na.rm = TRUE) / numracereport * 100,
+    PercentAsian = sum(eth_asian_total_cnt, na.rm = TRUE) / numracereport * 100,
+    PercentAge0to19 = sum(age_0to19yrs_total, na.rm = TRUE) / TotalPopulation * 100,
+    PercentAge20to39 = sum(age_20to39yrs_total, na.rm = TRUE) / TotalPopulation * 100,
+    PercentAge40Plus = sum(age_40plusyrs_total, na.rm = TRUE) / TotalPopulation * 100,
+    PercentIncome0to50k = sum(hh_income_0to50k_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    PercentIncome50to99k = sum(hh_income_50to99k_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    PercentIncome100to149k = sum(hh_income_100to149k_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    PercentIncome150to199k = sum(hh_income_150to199k_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    PercentIncome200kPlus = sum(hh_income_200kplus_total_cnt, na.rm = TRUE) / numreportedincome * 100,
+    TotalSales = sum(total_sales, na.rm = TRUE),
+    SalesPerCapita = mean(sales_per_capita, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+# Merge with recommended_markets
+recommended_markets_detailedB <- recommended_marketsB %>%
+  left_join(HANES_percentagesB, by = c("dma"))
+
+# View the updated dataframe
+print(recommended_markets_detailedB)
+
+
+HANES_clusters_detailedB <- HANES_clustersB %>% 
+  left_join(HANES_percentagesB, by = c("dma")) %>%
+  group_by(cluster) %>%
+  summarize( 
+            AVG_Age0to19 = mean(PercentAge0to19),
+            AVG_Age20to39 = mean(PercentAge20to39),
+            AVG_Age40Plus = mean(PercentAge40Plus))
+
+
+
+```
+
+```{r}
+library(ggplot2)
+library(reshape2)
+
+# Subset for PercentWhite
+data_white <- recommended_markets_detailed %>%
+  select(dma, category, PercentWhite)
+
+# Melting data for heatmap
+heatmap_white <- melt(data_white, id.vars = c("dma", "category"))
+
+# Heatmap for PercentWhite
+ggplot(heatmap_white, aes(x=category, y=dma, fill=value)) + 
+    geom_tile() +
+    scale_fill_gradient(low="blue", high="red") +
+    labs(x="Category", y="DMA", title="Heatmap of Percent White Population by DMA and Category")
+
+# Subset for PercentAsian
+data_asian <- recommended_markets_detailed %>%
+  select(dma, category, PercentAsian)
+
+# Melting data for heatmap
+heatmap_asian <- melt(data_asian, id.vars = c("dma", "category"))
+
+# Heatmap for PercentAsian
+ggplot(heatmap_asian, aes(x=category, y=dma, fill=value)) + 
+    geom_tile() +
+    scale_fill_gradient(low="blue", high="red") +
+    labs(x="Category", y="DMA", title="Heatmap of Percent Asian Population by DMA and Category")
+
+```
+
+```{r}
+# Subset for PercentAsian
+data_age <- recommended_markets_detailed %>%
+  select(dma, category, PercentAsian)
+
+# Melting data for heatmap
+heatmap_asian <- melt(data_asian, id.vars = c("dma", "category"))
+
+# Heatmap for PercentAsian
+ggplot(heatmap_asian, aes(x=category, y=dma, fill=value)) + 
+    geom_tile() +
+    scale_fill_gradient(low="blue", high="red") +
+    labs(x="Category", y="DMA", title="Heatmap of Percent Asian Population by DMA and Category")
+
+```

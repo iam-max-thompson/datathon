@@ -1,0 +1,304 @@
+---
+title: "Datathon_MODEL"
+author: "Ian Leonard & Aria Sajjad"
+date: "2023-11-16"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#Proportion Model Test
+
+# Load packages and data 
+library(tidyverse)
+library(ggplot2)
+library(plotly)
+library(RColorBrewer)
+library(scales)
+library(visdat)
+library(readxl)
+
+HANES <- read_excel("ut_blockgroup_data_2023.xlsx")
+
+```
+
+```{r}
+# check for 'null' values
+#sum(HANES$retailer26_avg_distance_miles == "null")
+
+# Ensure numeric data columns are numeric
+HANES = HANES %>% 
+  mutate(retailer26_store_cnt = as.numeric(retailer26_store_cnt)) %>%
+  mutate(retailer26_avg_distance_miles = as.numeric(retailer26_avg_distance_miles)) %>%
+  mutate(retailer41_store_cnt = as.numeric(retailer41_store_cnt)) %>%
+  mutate(retailer41_avg_distance_miles = as.numeric(retailer41_avg_distance_miles)) %>%
+  mutate(retailer45_store_cnt = as.numeric(retailer45_store_cnt)) %>%
+  mutate(retailer45_avg_distance_miles = as.numeric(retailer45_avg_distance_miles)) %>%
+  mutate(retailer46_store_cnt = as.numeric(retailer46_store_cnt)) %>%
+  mutate(retailer46_avg_distance_miles = as.numeric(retailer46_avg_distance_miles)) %>%
+  mutate(gender_by_age_total_cnt = as.numeric(gender_by_age_total_cnt)) %>%
+  mutate(gender_male_total_cnt = as.numeric(gender_male_total_cnt)) %>%
+  mutate(gender_female_total_cnt = as.numeric(gender_female_total_cnt)) %>%
+  mutate(gender_female_total_cnt = as.numeric(gender_female_total_cnt)) %>%
+  mutate(age_0to19yrs_total = as.numeric(age_0to19yrs_total)) %>%
+  mutate(age_20to39yrs_total = as.numeric(age_20to39yrs_total)) %>%
+  mutate(age_40plusyrs_total = as.numeric(age_40plusyrs_total)) %>%
+  mutate(hh_income_total_cnt = as.numeric(hh_income_total_cnt)) %>%
+  mutate(hh_income_0to50k_total_cnt = as.numeric(hh_income_0to50k_total_cnt)) %>%
+  mutate(hh_income_50to99k_total_cnt = as.numeric(hh_income_50to99k_total_cnt)) %>%
+  mutate(hh_income_100to149k_total_cnt = as.numeric(hh_income_100to149k_total_cnt)) %>%
+  mutate(hh_income_150to199k_total_cnt = as.numeric(hh_income_150to199k_total_cnt)) %>%
+  mutate(hh_income_200kplus_total_cnt = as.numeric(hh_income_200kplus_total_cnt)) %>%
+  mutate(ethnic_white_total_cnt = as.numeric(ethnic_white_total_cnt)) %>%
+  mutate(eth_blackafram_total_cnt = as.numeric(eth_blackafram_total_cnt)) %>%
+  mutate(eth_amindian_alaskan_total_cnt = as.numeric(eth_amindian_alaskan_total_cnt)) %>%
+  mutate(eth_asian_total_cnt = as.numeric(eth_asian_total_cnt)) %>%
+  mutate(eth_hawaiian_othpac_total_cnt = as.numeric(eth_hawaiian_othpac_total_cnt)) %>%
+  mutate(retailer26_sales_d = as.numeric(retailer26_sales_d)) %>%
+  mutate(retailer41_sales_d = as.numeric(retailer41_sales_d)) %>%
+  mutate(retailer45_sales_d = as.numeric(retailer45_sales_d)) %>%
+  mutate(retailer46_sales_d = as.numeric(retailer46_sales_d)) 
+
+```
+
+```{r}
+# Create and clean columns  
+# filter out small population census blocks
+HANES = HANES %>%
+  mutate(total_sales = retailer26_sales_d + retailer41_sales_d + retailer45_sales_d + retailer46_sales_d) %>%
+  mutate(sales_per_capita = total_sales / gender_by_age_total_cnt) %>%
+  mutate(numreportedincome = hh_income_total_cnt) %>%
+  mutate(numracereport = ethnic_white_total_cnt + eth_blackafram_total_cnt + eth_amindian_alaskan_total_cnt + eth_asian_total_cnt + eth_hawaiian_othpac_total_cnt) %>%
+  mutate(population = gender_by_age_total_cnt) %>% 
+  filter( gender_by_age_total_cnt >= 1000)
+```
+
+```{r}
+# Splitting the dataset into two subsets for Category A and Category B
+HANES_A <- HANES %>% filter(category == "category_a")
+HANES_B <- HANES %>% filter(category == "category_b")
+```
+
+```{r}
+# Create county_state column for grouping
+HANES_A$county_state <- paste(HANES_A$county_name, HANES_A$state_name, sep = ", ")
+HANES_B$county_state <- paste(HANES_B$county_name, HANES_B$state_name, sep = ", ")
+
+```
+ 
+
+HANES CATEGORY A MODEL BUILD (Random Forest)
+```{r}
+# Load necessary libraries
+library(caret)
+library(randomForest)
+
+# Function to safely calculate percentages, avoiding division by zero
+safe_percentage <- function(numerator, denominator) {
+  ifelse(denominator == 0, NA, (numerator / denominator) * 100)
+}
+
+# Data Preparation with safe percentage calculations
+HANES_percentagesA <- HANES_A %>%
+  group_by(county_state) %>%
+  summarise(
+    TotalPopulation = sum(population),
+    numrace = sum(numracereport),
+    numincome = sum(numreportedincome),
+    PercentWhite = safe_percentage(sum(ethnic_white_total_cnt, na.rm = TRUE), numrace),
+    PercentBlackAfrAm = safe_percentage(sum(eth_blackafram_total_cnt, na.rm = TRUE), numrace),
+    PercentAsian = safe_percentage(sum(eth_asian_total_cnt, na.rm = TRUE), numrace),
+    PercentAge0to19 = safe_percentage(sum(age_0to19yrs_total, na.rm = TRUE), TotalPopulation),
+    PercentAge20to39 = safe_percentage(sum(age_20to39yrs_total, na.rm = TRUE), TotalPopulation),
+    PercentAge40Plus = safe_percentage(sum(age_40plusyrs_total, na.rm = TRUE), TotalPopulation),
+    PercentIncome0to50k = safe_percentage(sum(hh_income_0to50k_total_cnt, na.rm = TRUE), numincome),
+    PercentIncome50to99k = safe_percentage(sum(hh_income_50to99k_total_cnt, na.rm = TRUE), numincome),
+    PercentIncome100to149k = safe_percentage(sum(hh_income_100to149k_total_cnt, na.rm = TRUE), numincome),
+    PercentIncome150to199k = safe_percentage(sum(hh_income_150to199k_total_cnt, na.rm = TRUE), numincome),
+    PercentIncome200kPlus = safe_percentage(sum(hh_income_200kplus_total_cnt, na.rm = TRUE), numincome),
+    TotalSales = sum(total_sales, na.rm = TRUE),
+    SalesPerCapita = mean(sales_per_capita, na.rm = TRUE),
+    logpop = log(TotalPopulation)
+  ) %>% 
+  ungroup()
+
+HANES_percentagesA <- na.omit(HANES_percentagesA)
+
+# Split the data
+split_index_a <- createDataPartition(HANES_percentagesA$SalesPerCapita, p = 0.7, list = FALSE)
+train_data_a <- HANES_percentagesA[split_index_a, ]
+test_data_a <- HANES_percentagesA[-split_index_a, ]
+
+response <- train_data_a$SalesPerCapita
+predictors <- train_data_a[, setdiff(names(train_data_a), "SalesPerCapita")]
+
+train_control <- trainControl(
+  method = "repeatedcv",
+  number = 5,
+  repeats = 3,
+  verboseIter = TRUE
+)
+
+# Define a grid of hyperparameters to search over (this is optional)
+rf_grid <- expand.grid(
+  mtry = c(2, 3, 4)  # Adjust these values based on your dataset and the number of predictors
+)
+
+# Train the Random Forest model
+model_a_rf_tuned <- train(
+  x = predictors,
+  y = response,
+  method = "rf",
+  trControl = train_control,
+  tuneGrid = rf_grid,  # Remove this line if you're not using a custom grid
+  verbose = TRUE
+)
+
+# Extract predictors from test data
+test_predictors <- test_data_a[, setdiff(names(test_data_a), "SalesPerCapita")]
+
+# Make predictions using the best model
+predictions_a_rf_tuned <- predict(model_a_rf_tuned, newdata = test_predictors)
+
+# Evaluate the model with tuned parameters
+rmse_a_rf_tuned <- sqrt(mean((predictions_a_rf_tuned - test_data_a$SalesPerCapita)^2))
+
+# Print RMSE
+print(rmse_a_rf_tuned)
+
+# Make predictions for all counties
+all_cat_a_predictions <- predict(model_a_rf_tuned, 
+                                 newdata = HANES_percentagesA[, setdiff(names(HANES_percentagesA), 
+                                                                        "SalesPerCapita")])
+
+```
+
+
+HANES CATEGORY B MODEL BUILD (XG Boost)
+```{r}
+# Calculate Percentages for Each DMA and Category
+HANES_percentagesB <- HANES_B %>%
+  group_by(county_state, dma) %>%
+  summarise(
+    TotalPopulation = sum(population),
+    numrace = sum(numracereport),
+    numincome = sum(numreportedincome),
+    PercentWhite = sum(ethnic_white_total_cnt, na.rm = TRUE) / numrace * 100,
+    PercentBlackAfrAm = sum(eth_blackafram_total_cnt, na.rm = TRUE) / numrace * 100,
+    PercentAsian = sum(eth_asian_total_cnt, na.rm = TRUE) / numrace * 100,
+    PercentAge0to19 = sum(age_0to19yrs_total, na.rm = TRUE) / TotalPopulation * 100,
+    PercentAge20to39 = sum(age_20to39yrs_total, na.rm = TRUE) / TotalPopulation * 100,
+    PercentAge40Plus = sum(age_40plusyrs_total, na.rm = TRUE) / TotalPopulation * 100,
+    PercentIncome0to50k = sum(hh_income_0to50k_total_cnt, na.rm = TRUE) / numincome * 100,
+    PercentIncome50to99k = sum(hh_income_50to99k_total_cnt, na.rm = TRUE) / numincome * 100,
+    PercentIncome100to149k = sum(hh_income_100to149k_total_cnt, na.rm = TRUE) / numincome * 100,
+    PercentIncome150to199k = sum(hh_income_150to199k_total_cnt, na.rm = TRUE) / numincome * 100,
+    PercentIncome200kPlus = sum(hh_income_200kplus_total_cnt, na.rm = TRUE) / numincome * 100,
+    TotalSales = sum(total_sales, na.rm = TRUE),
+    SalesPerCapita = mean(sales_per_capita, na.rm = TRUE),
+    logpop = log(TotalPopulation)
+    #dma = dma
+  ) %>% 
+  ungroup()
+
+```
+
+```{r}
+library(xgboost)
+#Category B
+# Data Preprocessing
+# (Note: Make sure to handle any missing values or other preprocessing steps as needed)
+
+# Split the data  # for reproducibility
+split_index_b <- createDataPartition(HANES_percentagesB$SalesPerCapita, p = 0.7, list = FALSE)
+train_data_b <- HANES_percentagesB[split_index_b, ]
+test_data_b <- HANES_percentagesB[-split_index_b, ]
+
+# Define the model
+model_b <- xgboost(
+  data = as.matrix(train_data_b[, -c(1,2,3,4,5,17,18)]),
+  label = train_data_b$SalesPerCapita,
+  nrounds = 50,  # Number of boosting rounds
+  objective = "reg:squarederror",  # Regression task
+  eval_metric = "rmse",
+  eta = 0.01
+  # Root Mean Squared Error as the evaluation metric
+)
+
+# Make predictions
+predictions_b <- predict(model_b, as.matrix(test_data_b[, -c(1,2,3,4,5,17,18)]))
+
+# Evaluate the model
+rmse_b <- sqrt(mean((predictions_b - test_data_b$SalesPerCapita)^2))
+cat("Root Mean Squared Error on the test set:", rmse_b, "\n")
+
+importance_b <- xgb.importance(model=model_b)
+print(importance_b)
+
+#all_b_predictions <- predict(model_b, newdata = HANES_percentagesB)
+all_cat_b_predictions <- predict(model_b, as.matrix(HANES_percentagesB[, -c(1,2,3,4,5,17,18)]))
+
+```
+
+```{r}
+# Creating data links for final output
+
+DMA_LINK_A <- HANES_A %>%
+  mutate(county_state = paste(county_name, state_name, sep = ", ")) %>%
+  distinct(county_state, county = county_name, state = state_name, DMA = dma)
+DMA_LINK_A_unique <- DMA_LINK_A %>%
+  group_by(county_state) %>%
+  filter(row_number() == 1) %>%
+  ungroup() %>%
+  filter(DMA != "null")
+  
+DMA_LINK_B <- HANES_B %>%
+  mutate(county_state = paste(county_name, state_name, sep = ", ")) %>%
+  distinct(county_state, county = county_name, state = state_name, DMA = dma)
+DMA_LINK_B_unique <- DMA_LINK_B %>%
+  group_by(county_state) %>%
+  filter(row_number() == 1) %>%
+  ungroup() %>%
+  filter(DMA != "null")
+
+```
+
+
+
+```{r}
+# CREATE A DATAFRAME WITH PREDICTED AND ACTUAL VALUES (A)
+
+county_comparison_cat_a <- HANES_percentagesA %>%
+  mutate(predicted_sales_per_cap = all_cat_a_predictions,
+         difference_scp = SalesPerCapita - predicted_sales_per_cap) %>%
+  left_join(DMA_LINK_A_unique, by = "county_state") 
+
+dim(HANES_percentagesA)
+  
+dim(county_comparison_cat_a)
+
+```
+
+```{r}
+# CREATE A DATAFRAME WITH PREDICTED AND ACTUAL VALUES (B)
+
+county_comparison_cat_b <- HANES_percentagesB %>%
+  mutate(predicted_sales_per_cap = all_cat_b_predictions,
+         difference_scp = SalesPerCapita - predicted_sales_per_cap) %>%
+  left_join(DMA_LINK_B_unique, by = "county_state")
+
+dim(HANES_percentagesB)
+
+dim(county_comparison_cat_b)
+
+```
+
+```{r}
+# Export csv files for Tableau
+write.csv(county_comparison_cat_a, "HANES_CAT_A_FINAL.csv", row.names = FALSE)
+write.csv(county_comparison_cat_b, "HANES_CAT_B_FINAL.csv", row.names = FALSE)
+```
+
