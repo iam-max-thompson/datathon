@@ -296,3 +296,9 @@ dim(county_comparison_cat_b)
 
 ```
 
+```{r}
+# Export csv files for Tableau
+write.csv(county_comparison_cat_a, "HANES_CAT_A_FINAL.csv", row.names = FALSE)
+write.csv(county_comparison_cat_b, "HANES_CAT_B_FINAL.csv", row.names = FALSE)
+```
+
