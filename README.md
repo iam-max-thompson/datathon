@@ -1,2 +1,2 @@
-# datathon
-shared repo for datathon work
+# Datathon
+Shared repository for datathon work.
